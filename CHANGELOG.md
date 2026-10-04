@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Fixed: corpus crawl missed the User Manual and wasted ~1,500 requests on 404s
+
+Most User Manual pages (`Events_UM`, `Units_UM`, `PythonSpecific_UM`, ...) and
+`SampleList.htm` are linked only from the help site's table of contents, so the
+crawl never reached them. It now seeds from `toctree.json` as well.
+
+About 1,500 of the 404s logged during a crawl came from broken links on
+Autodesk's own pages, and the target pages already existed under another slug:
+
+- "Derived from:" links that embed the C++ header folder
+  (`adsk.core.Materials_Property_id.htm` for `core_Property_id.htm`) are
+  rewritten before fetching, and in the stored markdown, so they resolve.
+- Core classes linked under a subclass namespace (`fusion_Base.htm`) and sample
+  links missing `_Sample` (`MaterialSample.htm`) retry one alternate slug on 404.
+
+### Fixed: a new `corpus build` no longer wipes the previous corpus
+
+A run without `--resume` deleted `corpus.jsonl` and appended to it page by page,
+so stopping a re-run early left only the pages fetched so far. `pages/` is now
+the source of truth: a fresh run re-fetches and overwrites pages in place, and
+`corpus.jsonl` is rebuilt from every page on disk when the run ends, including
+on Ctrl-C. A corpus clobbered by the old behaviour is recovered by any run,
+since the pages were never deleted. `--resume --limit 1` is the quickest.
+
 ### Added: the Claude skill ships from this repo
 
 `SKILL.md` and `install_skill.py` now live here, next to the knowledge markdown

@@ -110,7 +110,7 @@ pip install "fusion-cad-mcp[corpus] @ git+https://github.com/Mfrostbutter/fusion
 fusion-cad-mcp corpus build --i-accept-autodesk-terms
 ```
 
-It crawls at 1 request/second and takes a while. Output goes to `~/.fusion-cad/corpus/`, which is the first place the server looks. Override with `FUSION_CAD_CORPUS_DIR`.
+It crawls at 1 request/second and takes a while. Output goes to `~/.fusion-cad/corpus/`, which is the first place the server looks. Override with `FUSION_CAD_CORPUS_DIR`. Re-running refreshes pages in place rather than starting over; add `--resume` to fetch only what's missing.
 
 The other 74 tools work without it. Only `find_api` returns `corpus_not_built` until you do this.
 

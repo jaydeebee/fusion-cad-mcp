@@ -1,9 +1,11 @@
 """Fusion 360 API docs scraper.
 
 Crawls help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/*.htm starting from
-a seed list (Index.htm + What's New + known UM pages), follows every internal
-.htm link, converts each page to markdown, writes one .md per page plus a JSONL
-corpus, a manifest, and the crawl frontier that --resume picks back up.
+a seed list (Index.htm + What's New + known UM pages + every API page in the
+help site's table of contents), follows every internal .htm link, converts each
+page to markdown, and writes one .md per page. corpus.jsonl is then rebuilt from
+pages/, so a run only ever adds or refreshes pages and never discards earlier
+ones. Also writes a manifest and the crawl frontier that --resume picks back up.
 
 Usage:
     py -3 scraper.py --i-accept-autodesk-terms
@@ -12,13 +14,15 @@ Usage:
 
 Politeness:
     1 req/sec by default; --rate to override (seconds between requests).
-    Retries 3x with backoff on 5xx; logs and skips on 404.
+    Retries 3x with backoff on 5xx; on 404 tries a known alternate slug, else
+    logs and skips.
     Requires explicit local-cache consent before fetching Autodesk Help pages.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import sys
@@ -95,6 +99,11 @@ SEEDS = [
     "CustomFeatures_UM.htm",
 ]
 
+# The help site's table of contents. Most User Manual pages and the sample list
+# are reachable only from here, not by following links from Index.htm.
+TOC_URL = "https://help.autodesk.com/view/fusion360/ENU/data/toctree.json"
+TOC_API_PREFIX = "/cloudhelp/ENU/Fusion-360-API/files/"
+
 SESSION = requests.Session()
 SESSION.headers.update(
     {
@@ -131,6 +140,44 @@ def fetch(url: str, *, retries: int = 3, backoff: float = 2.0) -> str | None:
 
 HTM_LINK_RE = re.compile(r"""href\s*=\s*['\"]([^'\"]+\.htm)(?:#[^'\"]*)?['\"]""", re.IGNORECASE)
 
+# Autodesk's "Derived from:" links on inherited members embed the C++ header
+# folder, e.g. adsk.core.Materials_Property_id.htm for the page that actually
+# lives at core_Property_id.htm. Every such link 404s.
+HEADER_DIR_SLUG_RE = re.compile(r"^adsk\.([a-z]+)\.[A-Za-z0-9]+_(.+\.htm)$")
+
+API_NAMESPACES = ("core", "fusion", "cam", "drawing", "electron", "volume")
+NS_SLUG_RE = re.compile(r"^(" + "|".join(API_NAMESPACES) + r")_(.+\.htm)$")
+
+
+def canonical_slug(slug: str) -> str:
+    """Map a known-broken link slug to the slug Autodesk actually serves."""
+    m = HEADER_DIR_SLUG_RE.match(slug)
+    return f"{m.group(1)}_{m.group(2)}" if m else slug
+
+
+def canonical_url(url: str) -> str:
+    head, _, slug = url.rpartition("/")
+    return f"{head}/{canonical_slug(slug)}"
+
+
+def fallback_url(url: str) -> str | None:
+    """Where a 404'd page most likely lives, or None if there's no guess.
+
+    Two other link shapes on Autodesk's pages 404:
+      - classes inherited from core, linked under the subclass's namespace
+        (fusion_Base.htm, cam_EventArgs.htm -> core_Base.htm, core_EventArgs.htm)
+      - sample links missing the _Sample suffix (MaterialSample.htm ->
+        MaterialSample_Sample.htm)
+    A fallback never yields another fallback, so a miss costs one extra request.
+    """
+    head, _, slug = url.rpartition("/")
+    m = NS_SLUG_RE.match(slug)
+    if m:
+        return f"{head}/core_{m.group(2)}" if m.group(1) != "core" else None
+    if not slug.endswith("_Sample.htm"):
+        return f"{head}/{slug[:-4]}_Sample.htm"
+    return None
+
 
 def extract_links(html: str) -> list[str]:
     """Pull all internal .htm links from a page (relative or absolute under our base)."""
@@ -142,9 +189,39 @@ def extract_links(html: str) -> list[str]:
         # Same-folder scope only
         if absurl.startswith(BASE):
             # Drop fragment, normalize
-            absurl = absurl.split("#", 1)[0]
+            absurl = canonical_url(absurl.split("#", 1)[0])
             out.append(absurl)
     return out
+
+
+def toc_seeds() -> list[str]:
+    """API page URLs listed in the help site's table of contents.
+
+    Empty when the TOC can't be fetched or parsed; the static SEEDS still run.
+    """
+    text = fetch(TOC_URL)
+    if text is None:
+        log(f"WARN could not fetch {TOC_URL}; crawling from static seeds only")
+        return []
+    try:
+        books = json.loads(text)["books"]
+    except (ValueError, KeyError, TypeError) as e:
+        log(f"WARN unreadable TOC {TOC_URL}: {e}")
+        return []
+
+    out: dict[str, None] = {}
+    stack = list(books)
+    while stack:
+        node = stack.pop()
+        if not isinstance(node, dict):
+            continue
+        ln = node.get("ln") or ""
+        if TOC_API_PREFIX in ln:
+            slug = ln.rsplit("/", 1)[-1].split("#", 1)[0]
+            out[BASE + canonical_slug(slug)] = None
+        stack.extend(node.get("children") or [])
+    log(f"TOC: {len(out)} API pages listed")
+    return list(out)
 
 
 def title_from_html(soup: BeautifulSoup) -> str:
@@ -178,14 +255,15 @@ def classify(slug: str) -> tuple[str, str]:
     return (name, "object")
 
 
-def page_to_record(url: str, html: str) -> dict:
-    soup = BeautifulSoup(html, HTML_PARSER)
-    title = title_from_html(soup)
-    body = main_content(soup)
-    body_html = str(body)
-    body_md = md_convert(body_html, heading_style="ATX", bullets="-").strip()
-    slug = url.rsplit("/", 1)[-1]
-    namespace, kind = classify(slug)
+HEADER_DIR_LINK_RE = re.compile(r"\badsk\.([a-z]+)\.[A-Za-z0-9]+_([^\s()<>\"'#]+\.htm)")
+
+
+def fix_links(body_md: str) -> str:
+    """Point header-folder "Derived from:" links at the page that exists."""
+    return HEADER_DIR_LINK_RE.sub(r"\1_\2", body_md)
+
+
+def make_record(url: str, slug: str, title: str, namespace: str, kind: str, body_md: str) -> dict:
     introduced_match = INTRODUCED_RE.search(body_md)
     return {
         "url": url,
@@ -197,6 +275,17 @@ def page_to_record(url: str, html: str) -> dict:
         "introduced": introduced_match.group(1).strip() if introduced_match else None,
         "body_md": body_md,
     }
+
+
+def page_to_record(url: str, html: str) -> dict:
+    soup = BeautifulSoup(html, HTML_PARSER)
+    title = title_from_html(soup)
+    body = main_content(soup)
+    body_html = str(body)
+    body_md = fix_links(md_convert(body_html, heading_style="ATX", bullets="-").strip())
+    slug = url.rsplit("/", 1)[-1]
+    namespace, kind = classify(slug)
+    return make_record(url, slug, title, namespace, kind, body_md)
 
 
 def write_page(record: dict) -> Path:
@@ -216,9 +305,52 @@ def write_page(record: dict) -> Path:
     return path
 
 
-def append_corpus(record: dict) -> None:
-    with CORPUS_PATH.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+def read_page(path: Path) -> dict | None:
+    """Turn a page written by write_page back into its corpus record."""
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        return None
+    front, sep, body_md = text[4:].partition("\n---\n\n")
+    if not sep:
+        return None
+    fields = dict(line.split(": ", 1) for line in front.splitlines() if ": " in line)
+    try:
+        title = ast.literal_eval(fields.get("title", "''"))
+        return make_record(
+            fields["url"],
+            fields["slug"],
+            title,
+            fields["namespace"],
+            fields["kind"],
+            fix_links(body_md),
+        )
+    except (KeyError, ValueError, SyntaxError):
+        return None
+
+
+def rebuild_corpus() -> int:
+    """Regenerate corpus.jsonl from every page on disk. Returns the record count.
+
+    pages/ is the source of truth, so a re-crawl updates the corpus in place and
+    an interrupted run never leaves it holding only the pages fetched so far.
+    Written atomically.
+    """
+    count = 0
+    tmp = CORPUS_PATH.with_name(CORPUS_PATH.name + ".tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        for path in sorted(PAGES_DIR.glob("*.md")):
+            try:
+                record = read_page(path)
+            except OSError as e:
+                log(f"  WARN unreadable page {path.name}: {e}")
+                continue
+            if record is None:
+                log(f"  WARN malformed page {path.name}, left out of corpus")
+                continue
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            count += 1
+    tmp.replace(CORPUS_PATH)
+    return count
 
 
 def already_scraped() -> set[str]:
@@ -267,7 +399,7 @@ def extract_links_from_markdown(text: str) -> list[str]:
         href = m.group(1) or m.group(2)
         absurl = urljoin(BASE, href).split("#", 1)[0]
         if absurl.startswith(BASE):
-            out.append(absurl)
+            out.append(canonical_url(absurl))
     return out
 
 
@@ -299,10 +431,9 @@ def run(limit: int | None, rate: float, resume: bool) -> dict:
     """Crawl until the queue drains. Returns the manifest."""
     PAGES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Reset corpus on fresh run
+    # A fresh run re-fetches every page, overwriting each in place; pages it
+    # doesn't reach stay on disk. Only the crawl position is reset.
     if not resume:
-        if CORPUS_PATH.exists():
-            CORPUS_PATH.unlink()
         FRONTIER_PATH.unlink(missing_ok=True)
 
     seen: set[str] = set()
@@ -329,8 +460,7 @@ def run(limit: int | None, rate: float, resume: bool) -> dict:
             restored = len(queue)
             log(f"Resume: no saved frontier, rebuilt {restored} URLs from pages on disk")
 
-    for s in SEEDS:
-        url = BASE + s
+    for url in [BASE + s for s in SEEDS] + toc_seeds():
         if url not in seen:
             queue.append(url)
 
@@ -357,8 +487,13 @@ def run(limit: int | None, rate: float, resume: bool) -> dict:
             log(f"[{scraped + 1}] GET {slug}")
             html = fetch(url)
             if html is None:
-                log(f"  SKIP {slug}: 404 or permanent failure")
-                failed += 1
+                alt = fallback_url(url)
+                if alt is None:
+                    log(f"  SKIP {slug}: 404 or permanent failure")
+                    failed += 1
+                elif alt not in seen:
+                    log(f"  404 {slug}, trying {alt.rsplit('/', 1)[-1]}")
+                    queue.appendleft(alt)
                 inflight = None
                 time.sleep(rate)
                 continue
@@ -366,7 +501,6 @@ def run(limit: int | None, rate: float, resume: bool) -> dict:
             try:
                 record = page_to_record(url, html)
                 write_page(record)
-                append_corpus(record)
                 scraped += 1
             except Exception as e:
                 log(f"  ERROR parsing {slug}: {e}")
@@ -388,6 +522,8 @@ def run(limit: int | None, rate: float, resume: bool) -> dict:
             queue.appendleft(inflight)
             seen.discard(inflight)
         save_frontier(queue, seen)
+        records = rebuild_corpus()
+        log(f"Corpus rebuilt from pages/: {records} records")
 
     manifest = {
         "scraped": scraped,
@@ -395,6 +531,7 @@ def run(limit: int | None, rate: float, resume: bool) -> dict:
         "seen": len(seen),
         "queue_remaining": len(queue),
         "pages_on_disk": len(already),
+        "records": records,
         "frontier_source": frontier_source,
         "frontier_restored": restored,
         "completed": time.strftime("%Y-%m-%dT%H:%M:%S"),

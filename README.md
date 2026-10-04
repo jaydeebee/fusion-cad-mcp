@@ -106,7 +106,7 @@ pip install "fusion-cad-mcp[corpus] @ git+https://github.com/Mfrostbutter/fusion
 fusion-cad-mcp corpus build --i-accept-autodesk-terms
 ```
 
-That crawls at 1 request/second into `~/.fusion-cad/corpus/`, which is where the server looks first. Set `FUSION_CAD_CORPUS_DIR` to keep it elsewhere. Everything else works without it.
+That crawls at 1 request/second into `~/.fusion-cad/corpus/`, which is where the server looks first. Set `FUSION_CAD_CORPUS_DIR` to keep it elsewhere. Everything else works without it. Re-running refreshes pages in place rather than starting over; add `--resume` to fetch only what's missing.
 
 ## The Claude skill
 

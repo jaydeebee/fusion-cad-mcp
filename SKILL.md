@@ -1,6 +1,6 @@
 ---
 name: fusion-cad
-description: "Use this skill whenever the user wants to do CAD work through Autodesk Fusion, either via the fusion-cad-mcp server (75 named tools: create_sketch, add_rectangle, extrude, add_hole, fillet_edges, create_joint, export, and so on) or via Autodesk's own Fusion MCP (fusion_mcp_execute, fusion_mcp_read, fusion_mcp_update, fusion_mcp_electronics_read). Covers parametric constrained sketches, extrudes, holes, fillets, chamfers, shells, multi-body modeling, assemblies and components, as-built joints, motion (hinges, sliders), print-in-place mechanisms and print orientation, exports to STL/3MF/STEP, undo/redo, screenshots, API documentation lookup, and explicit camera control. Trigger on any mention of Fusion 360, the Fusion MCP, .f3d/.f3z/.step files, parametric CAD design, building or editing 3D models programmatically, sketches, extrudes, fillets, counterbore holes, components, joints, hinges, sliders, assemblies, print-in-place parts, print orientation, or when the user asks to model a bracket, tray, mount, panel, organizer, rack mount, or any functional 3D-printed product. Use even if the user does not name the MCP explicitly: if they ask Claude to design something in Fusion or build a part, this skill applies."
+description: "Use this skill whenever the user wants to do CAD work through Autodesk Fusion, either via the fusion-cad-mcp server (77 named tools: create_sketch, add_rectangle, extrude, add_hole, fillet_edges, create_joint, export, and so on) or via Autodesk's own Fusion MCP (fusion_mcp_execute, fusion_mcp_read, fusion_mcp_update, fusion_mcp_electronics_read). Covers parametric constrained sketches, extrudes, holes, fillets, chamfers, shells, multi-body modeling, assemblies and components, as-built joints, motion (hinges, sliders), print-in-place mechanisms and print orientation, exports to STL/3MF/STEP, undo/redo, screenshots, API documentation lookup, and explicit camera control. Trigger on any mention of Fusion 360, the Fusion MCP, .f3d/.f3z/.step files, parametric CAD design, building or editing 3D models programmatically, sketches, extrudes, fillets, counterbore holes, components, joints, hinges, sliders, assemblies, print-in-place parts, print orientation, or when the user asks to model a bracket, tray, mount, panel, organizer, rack mount, or any functional 3D-printed product. Use even if the user does not name the MCP explicitly: if they ask Claude to design something in Fusion or build a part, this skill applies."
 ---
 
 # Fusion CAD
@@ -13,7 +13,7 @@ Drive Autodesk Fusion safely and efficiently through an MCP server.
 
 This matters before anything else, because the tool surface is completely different.
 
-**`fusion-cad-mcp` (this project).** 75 named, typed tools: `create_sketch`, `extrude`, `add_hole`, `create_joint`. Each one validates arguments, returns a structured envelope, and encodes the gotchas so you do not have to. **Prefer this whenever it is available.**
+**`fusion-cad-mcp` (this project).** 77 named, typed tools: `create_sketch`, `extrude`, `add_hole`, `create_joint`. Each one validates arguments, returns a structured envelope, and encodes the gotchas so you do not have to. **Prefer this whenever it is available.**
 
 **Autodesk's own Fusion MCP.** Four fat tools that take raw Python or query objects:
 
@@ -32,7 +32,7 @@ Load on demand. This file is the operating manual; those are the depth.
 
 | File | What it is | When to load |
 |---|---|---|
-| `tools.md` | All 75 tools: signatures, exact enums, return keys, error codes | Before calling a tool whose arguments you are not sure of |
+| `tools.md` | All 77 tools: signatures, exact enums, return keys, error codes | Before calling a tool whose arguments you are not sure of |
 | `gotchas.md` | Failure-mode catalog, each with symptom and fix | When something behaves unexpectedly, or before a risky operation |
 | `patterns.md` | Reusable Python for `execute` | When no typed tool covers the operation |
 

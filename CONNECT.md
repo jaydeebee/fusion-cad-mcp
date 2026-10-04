@@ -62,7 +62,7 @@ Or edit the config directly. User scope, `~/.claude.json`, loads in every sessio
 
 Project scope, `.mcp.json` in a repo root, loads only in that repo. Use that if you only do CAD work in one place.
 
-Verify with `/mcp` inside Claude Code. You should see `fusion` connected with 75 tools.
+Verify with `/mcp` inside Claude Code. You should see `fusion` connected with 77 tools.
 
 ### Claude Desktop
 
@@ -112,7 +112,7 @@ fusion-cad-mcp corpus build --i-accept-autodesk-terms
 
 It crawls at 1 request/second and takes a while. Output goes to `~/.fusion-cad/corpus/`, which is the first place the server looks. Override with `FUSION_CAD_CORPUS_DIR`. Re-running refreshes pages in place rather than starting over; add `--resume` to fetch only what's missing.
 
-The other 74 tools work without it. Only `find_api` returns `corpus_not_built` until you do this.
+The other 76 tools work without it. Only `find_api` returns `corpus_not_built` until you do this.
 
 ## Troubleshooting
 

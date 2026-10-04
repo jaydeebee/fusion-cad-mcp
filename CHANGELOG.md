@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added: `list_materials` and `set_material`
+
+Material names live in Fusion's installed libraries, not the API docs, so
+`find_api` can say how to assign a material but not what "aluminum" is called.
+`list_materials("alumin")` finds the names (`Aluminum`, `Aluminum 6061`, ...),
+and `set_material("Aluminum 6061", body_name="Body1")` assigns one to a body or
+component. Verified against a live Fusion. A library material can be assigned
+directly, and setting a component's material also overwrites its bodies'.
+
 ### Fixed: corpus crawl missed the User Manual and wasted ~1,500 requests on 404s
 
 Most User Manual pages (`Events_UM`, `Units_UM`, `PythonSpecific_UM`, ...) and

@@ -4,7 +4,7 @@ An MCP server that gives Autodesk Fusion a named, typed tool surface: `create_sk
 
 Fusion ships its own MCP server, but it exposes four broad tools that take raw Python. That works, and it means every call is an opportunity to get the Fusion API wrong. This sits in front of it and turns the common operations into validated tools with structured errors, so an agent can do CAD without carrying a large prose skill in context.
 
-**Status: beta (0.2.x).** 75 tools, 467 tests, and a full pass of live verification against Fusion 2704.1.23 that found and fixed 17 bugs. Used in production for parametric part design.
+**Status: beta (0.2.x).** 77 tools, 467 tests, and a full pass of live verification against Fusion 2704.1.23 that found and fixed 17 bugs. Used in production for parametric part design.
 
 ## Requirements
 
@@ -48,7 +48,7 @@ Each tool generates a Python script and runs it through Fusion's `execute`. It i
 
 ## The tools
 
-75 registered, 74 usable. Full reference with signatures, enums, return keys, and error codes is in [`tools.md`](src/fusion_cad_mcp/knowledge/tools.md), or search it in place with the `find_tool` tool.
+77 registered, 76 usable. Full reference with signatures, enums, return keys, and error codes is in [`tools.md`](src/fusion_cad_mcp/knowledge/tools.md), or search it in place with the `find_tool` tool.
 
 | Group | Tools |
 |---|---|

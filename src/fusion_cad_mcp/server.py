@@ -22,6 +22,7 @@ from .tools import features as feat
 from .tools import handle_tools as ht
 from .tools import io as io_tools
 from .tools import knowledge as kn
+from .tools import materials as mat
 from .tools import parameters as params
 from .tools import sketch as sk
 from .tools import verify as verify_tools
@@ -997,6 +998,33 @@ def mass(body_name: str | None = None) -> dict:
 def center_of_mass(body_name: str | None = None) -> dict:
     """Return center of mass in mm world coordinates for a body or all bodies."""
     return verify_tools.center_of_mass(_get_adapter(), body_name).to_dict()
+
+
+@mcp.tool()
+def list_materials(
+    name_filter: str | None = None, library: str | None = None, limit: int = 50
+) -> dict:
+    """Find physical material names: case-insensitive substring match over every loaded
+    material library plus the design's own materials (library "<design>").
+    Material names come from Fusion's libraries, not the API docs, so look them up here
+    before set_material. Returns library, name, id per match, and the library names.
+    """
+    return mat.list_materials(_get_adapter(), name_filter, library, limit).to_dict()
+
+
+@mcp.tool()
+def set_material(
+    material: str,
+    body_name: str | None = None,
+    component_name: str | None = None,
+    library: str | None = None,
+) -> dict:
+    """Assign a physical material (exact name or id) to one body OR one component.
+    Searches the design's materials first, then each library (or only `library`).
+    On a miss returns material_not_found with near-name suggestions.
+    Setting a component's material also reassigns the bodies in it.
+    """
+    return mat.set_material(_get_adapter(), material, body_name, component_name, library).to_dict()
 
 
 @mcp.tool()

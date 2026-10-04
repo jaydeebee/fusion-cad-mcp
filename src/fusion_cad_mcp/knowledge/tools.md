@@ -1,8 +1,8 @@
 # Fusion MCP tool reference
 
-Complete reference for the 75 typed tools exposed by `fusion-cad-mcp`. Every signature, enum, return key, and error code here was read out of the server source and verified against a live Fusion build, not inferred.
+Complete reference for the 77 typed tools exposed by `fusion-cad-mcp`. Every signature, enum, return key, and error code here was read out of the server source and verified against a live Fusion build, not inferred.
 
-74 of the 75 are usable. `rib` is registered but permanently returns `rib_not_scriptable`, because the Fusion API exposes `RibFeatures` as a read-only collection. It is documented in Group 5 along with the workaround.
+76 of the 77 are usable. `rib` is registered but permanently returns `rib_not_scriptable`, because the Fusion API exposes `RibFeatures` as a read-only collection. It is documented in Group 5 along with the workaround.
 
 `SKILL.md` is the operating manual and tells you *which* tool to reach for. This file tells you *exactly* how to call it. Load this when you need a signature, an enum, or an error code.
 
@@ -18,7 +18,7 @@ Three conventions hold everywhere and are not repeated:
 
 ## The envelope
 
-Every one of the 75 tools returns the same shape. This is the single parsing contract:
+Every one of the 77 tools returns the same shape. This is the single parsing contract:
 
 ```python
 {
@@ -885,6 +885,30 @@ Every entry carries `path` and `name`. A per-body failure becomes `{path, error}
 Errors: `no_active_design`, `body_not_found` (only when a filter matched nothing), `<tool>_parse_failed`.
 
 **These are the ground truth for verification.** Bounding box catches orientation errors that screenshots hide; volume catches missed cuts and wrong participant bodies. Pair them after every body-adding feature.
+
+## `list_materials(name_filter=None, library=None, limit=50)`
+
+Case-insensitive substring search over physical material names in every loaded material library, plus the materials already in the design (reported as library `<design>`). Works with no design open.
+
+**Material names are not in the API docs.** They come from the user's installed libraries, so look a name up here before calling `set_material`. Names repeat across libraries (`Aluminum` is in more than one), so each entry carries its `id`.
+
+Returns: `materials` (`library`, `name`, `id`), `count`, `total_matched`, `truncated`, `libraries`, `skipped_libraries`.
+
+Errors: `invalid_limit`, `library_not_found` (result lists the real `libraries`).
+
+## `set_material(material, body_name=None, component_name=None, library=None)`
+
+Assigns a physical material to exactly one body or one component. `material` is an exact name or id. The search covers the design's materials first, then each library in order; pass `library` to search only that one. A library material can be assigned directly, and Fusion copies it into the design.
+
+- Body names are matched across every component. A name in more than one component returns `ambiguous_body` with the `paths`.
+- **Setting a component's material also reassigns the bodies in it**, overwriting a body's own material.
+- On a miss, `suggestions` lists near names, shortest first, matched on word stems, so `Aluminium` finds `Aluminum`.
+
+Returns: `target`, `kind`, `before`, `after`, `material_id`, `library`, `other_matches` (same name, different id, elsewhere).
+
+Errors: `invalid_material`, `invalid_target` (need exactly one of body_name / component_name), `no_active_design`, `body_not_found`, `component_not_found`, `ambiguous_body`, `ambiguous_component`, `material_not_found`, `material_not_applied`.
+
+Verify with `mass(body_name)`: `material` and `density_kg_m3` change with the assignment.
 
 ## `audit_feature_health(component_name=None, include_healthy=False)`
 

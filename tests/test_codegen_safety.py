@@ -37,6 +37,7 @@ from fusion_cad_mcp.tools import doc_state as ds
 from fusion_cad_mcp.tools import features as f
 from fusion_cad_mcp.tools import handle_tools as ht
 from fusion_cad_mcp.tools import io as io_tools
+from fusion_cad_mcp.tools import materials as mats
 from fusion_cad_mcp.tools import parameters as params
 from fusion_cad_mcp.tools import sketch as sk
 from fusion_cad_mcp.tools import verify as vf
@@ -275,6 +276,9 @@ GENERATOR_CALLS = [
     ("mass.all", vf.build_mass, (), {}),
     ("center_of_mass.all", vf.build_center_of_mass, (), {}),
     ("audit_feature_health.min", vf.build_audit_feature_health, (), {}),
+    # ---- materials ----
+    ("list_materials.min", mats.build_list_materials, (), {}),
+    ("set_material.body", mats.build_set_material, ("Aluminum",), {"body_name": "Body1"}),
     # ---- visualize ----
     ("set_view.min", viz.build_set_view, ("iso-top-right",), {}),
     ("set_view.current", viz.build_set_view, ("current",), {"fit": False}),
